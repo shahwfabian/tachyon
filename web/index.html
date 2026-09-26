@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tachyon: Low-Latency Order Book</title>
+  <meta name="description" content="A C++20 price-time-priority matching engine with nanosecond latency benchmarks and a differential fuzzer that shrinks failures to minimal reproductions." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b0f14'/><path d='M8 22 L16 8 L24 22' stroke='%2334d399' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='16' cy='20' r='2.5' fill='%23f87171'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="#"><span class="logo">&#9650;</span> tachyon</a>
+      <nav>
+        <a href="#live">Live engine</a>
+        <a href="#bench">Benchmarks</a>
+        <a href="#fuzz">Fuzzing</a>
+        <a href="#design">Design</a>
+        <a class="gh" href="https://github.com/shahwfabian/tachyon" target="_blank" rel="noopener">GitHub &#8599;</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <p class="eyebrow">C++20 &middot; matching engine &middot; property-based testing</p>
+      <h1>A limit order book that is fast, <em>and can prove it's correct.</em></h1>
+      <p class="lede">
+        Tachyon is a price-time-priority matching engine built around a flat price ladder, an intrusive order pool and
+        per-side occupancy bitmaps. It is checked by a differential fuzzer that runs it next to a reference book, catches
+        every planted bug, and shrinks each failure down to a handful of events.
+      </p>
+      <div class="stats" id="stats">
+        <div class="stat"><span class="v" data-k="mops">—</span><span class="l">orders / sec</span></div>
+        <div class="stat"><span class="v" data-k="p50">—</span><span class="l">median latency</span></div>
+        <div class="stat"><span class="v" data-k="p99">—</span><span class="l">p99 latency</span></div>
+        <div class="stat"><span class="v" data-k="speedup">—</span><span class="l">vs std::map book</span></div>
+        <div class="stat"><span class="v" data-k="bugs">—</span><span class="l">planted bugs caught</span></div>
+        <div class="stat"><span class="v" data-k="shrunk">—</span><span class="l">events per minimal repro</span></div>
+      </div>
+      <p class="fine" id="machine"></p>
+    </section>
+
+    <section id="live" class="wrap block">
+      <div class="section-head">
+        <h2>Live engine</h2>
+        <p>This isn't a JavaScript re-implementation. The C++ engine is compiled to a <span id="wasm-size">28&nbsp;KB</span> WebAssembly module and runs in your browser. Synthetic order flow streams in, or you can trade against the book yourself.</p>
+      </div>
+      <div class="live">
+        <div class="panel ladder-panel">
+          <div class="panel-head">
+            <span>Depth ladder</span>
+            <span class="muted mono" id="spread">—</span>
+          </div>
+          <div id="ladder" class="ladder" aria-live="off"></div>
+        </div>
+        <div class="side-col">
+          <div class="panel">
+            <div class="panel-head"><span>Flow</span><span class="muted mono" id="live-stats">—</span></div>
+            <div class="controls">
+              <button id="play" class="btn primary">Pause</button>
+              <label>Speed <input id="speed" type="range" min="1" max="400" value="40" /></label>
+              <label>Aggression <input id="aggr" type="range" min="0" max="40" value="8" /></label>
+            </div>
+            <div class="ticket">
+              <div class="seg" role="group" aria-label="Side">
+                <button class="seg-btn buy active" data-side="0">Buy</button>
+                <button class="seg-btn sell" data-side="1">Sell</button>
+              </div>
+              <label>Qty <input id="t-qty" type="number" min="1" value="25" /></label>
+              <label>Price <input id="t-px" type="number" min="0" /></label>
+              <button id="t-limit" class="btn">Limit</button>
+              <button id="t-mkt" class="btn">Market</button>
+            </div>
+            <p class="fine" id="t-msg">Your orders are highlighted on the ladder.</p>
+          </div>
+          <div class="panel tape-panel">
+            <div class="panel-head"><span>Trade tape</span><span class="muted mono" id="vol">—</span></div>
+            <div id="tape" class="tape mono"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="bench" class="wrap block">
+      <div class="section-head">
+        <h2>Benchmarks</h2>
+        <p id="bench-lede">Both books replay the same pre-generated stream of orders, starting from the same pre-built book of resting orders. Each operation is timed with the CPU's timestamp counter (<span class="mono">rdtsc</span>). Both books must produce identical fills, or the run fails.</p>
+      </div>
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head"><span>Latency distribution per operation</span>
+            <span class="legend"><i class="sw a"></i>Tachyon <i class="sw b"></i>std::map reference</span></div>
+          <div id="hist" class="hist"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><span>Percentiles (ns)</span></div>
+          <table class="tbl mono" id="pct"></table>
+          <div class="panel-head sub"><span>Tachyon by operation (ns)</span></div>
+          <table class="tbl mono" id="bytype"></table>
+        </div>
+      </div>
+      <p class="fine" id="workload"></p>
+    </section>
+
+    <section id="fuzz" class="wrap block">
+      <div class="section-head">
+        <h2>Differential fuzzing &amp; shrinking</h2>
+        <p>Eight realistic matching-engine bugs are planted behind a compile-time flag. For each one, the fuzzer generates random order flow and runs Tachyon and a simple <span class="mono">std::map</span> reference book side by side. After every event it checks that both books agree on status, fills and full book state, and that Tachyon's own invariants still hold. When a check fails, a delta-debugging shrinker removes events and simplifies values until nothing else can be removed. <strong>Click any bug</strong> to step through its minimal reproduction.</p>
+      </div>
+      <div class="clean panel" id="clean"></div>
+      <div class="panel bug-wrap">
+        <table class="tbl bugs" id="bugs"></table>
+      </div>
+      <div class="panel repro" id="repro"></div>
+    </section>
+
+    <section id="design" class="wrap block">
+      <div class="section-head">
+        <h2>Design</h2>
+        <p>Every choice below is about keeping the hot path free of allocation, branches and pointer chasing.</p>
+      </div>
+      <div class="design">
+        <svg viewBox="0 0 720 300" class="diagram" role="img" aria-label="Memory layout: price levels array, occupancy bitmaps and order pool">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
+          </defs>
+          <text x="20" y="26" class="d-label">bid bitmap</text>
+          <g class="bits">
+            <rect x="110" y="12" width="300" height="20" class="d-box"/>
+            <rect x="130" y="12" width="10" height="20" class="d-bid"/><rect x="170" y="12" width="10" height="20" class="d-bid"/><rect x="200" y="12" width="10" height="20" class="d-bid"/>
+          </g>
+          <text x="20" y="56" class="d-label">ask bitmap</text>
+          <rect x="110" y="42" width="300" height="20" class="d-box"/>
+          <rect x="230" y="42" width="10" height="20" class="d-ask"/><rect x="260" y="42" width="10" height="20" class="d-ask"/><rect x="330" y="42" width="10" height="20" class="d-ask"/>
+          <text x="420" y="36" class="d-note">1 bit per tick &#8594; next best price with</text>
+          <text x="420" y="52" class="d-note">countr_zero / countl_zero on 64-bit words</text>
+
+          <text x="20" y="110" class="d-label">price levels</text>
+          <rect x="110" y="92" width="300" height="30" class="d-box"/>
+          <g class="lvls">
+            <rect x="200" y="92" width="10" height="30" class="d-bid"/>
+            <rect x="230" y="92" width="10" height="30" class="d-ask"/>
+          </g>
+          <text x="420" y="104" class="d-note">flat array indexed by tick: head, tail,</text>
+          <text x="420" y="120" class="d-note">aggregate qty, count (O(1) level lookup)</text>
+          <text x="198" y="140" class="d-tag">best bid</text><text x="226" y="152" class="d-tag">best ask</text>
+
+          <text x="20" y="206" class="d-label">order pool</text>
+          <rect x="110" y="186" width="70" height="36" class="d-order"/><text x="145" y="208" class="d-o">#17</text>
+          <rect x="200" y="186" width="70" height="36" class="d-order"/><text x="235" y="208" class="d-o">#42</text>
+          <rect x="290" y="186" width="70" height="36" class="d-order"/><text x="325" y="208" class="d-o">#88</text>
+          <path d="M180,198 L200,198" class="d-link" marker-end="url(#ar)"/>
+          <path d="M270,198 L290,198" class="d-link" marker-end="url(#ar)"/>
+          <path d="M200,212 L180,212" class="d-link" marker-end="url(#ar)"/>
+          <path d="M290,212 L270,212" class="d-link" marker-end="url(#ar)"/>
+          <path d="M235,122 C235,160 145,150 145,186" class="d-link" marker-end="url(#ar)"/>
+          <text x="420" y="198" class="d-note">preallocated slots, 32-bit intrusive links</text>
+          <text x="420" y="214" class="d-note">FIFO per level, free list, zero malloc</text>
+
+          <text x="20" y="266" class="d-label">id index</text>
+          <rect x="110" y="250" width="300" height="24" class="d-box"/>
+          <text x="420" y="260" class="d-note">dense exchange ids &#8594; slot: one load</text>
+          <text x="420" y="276" class="d-note">cancel / modify are O(1)</text>
+          <path d="M325,250 L325,222" class="d-link" marker-end="url(#ar)"/>
+        </svg>
+        <ul class="points">
+          <li><b>Integer ticks, one shared ladder.</b> An uncrossed book can never hold a bid and an ask at the same tick, so both sides share a single array of price levels. The same tick can switch sides when an aggressive order clears it.</li>
+          <li><b>Cached best price and bitmap scan.</b> The best bid and ask are kept up to date as orders arrive. The bitmap is scanned only when the best level empties, and each 64-bit word it checks covers 64 ticks.</li>
+          <li><b>Intrusive FIFO queues.</b> Orders sit in preallocated slots linked to their neighbors by 32-bit indices, with no allocator calls. Freed slots are reused most-recent-first, so recently used memory stays in cache.</li>
+          <li><b>Exchange semantics.</b> Trades execute at the resting order's price. Reducing an order's size keeps its place in the queue. Increasing its size or changing its price sends it to the back. Market orders never rest on the book.</li>
+          <li><b>Zero-cost planted bugs.</b> The bug hooks are compiled in only when <span class="mono">TACHYON_PLANTED_BUGS</span> is defined. The benchmarked binary contains none of them.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <span>Built by <a href="https://shahwfabian.com" target="_blank" rel="noopener">Shah Wasif Fabian</a></span>
+    <span class="muted">C++20 &middot; WebAssembly &middot; no dependencies</span>
+  </footer>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

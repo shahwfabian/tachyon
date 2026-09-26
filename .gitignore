@@ -1,0 +1,8 @@
+build/
+.venv/
+__pycache__/
+*.exe
+*.pdb
+*.o
+fuzz_smoke.json
+.vercel

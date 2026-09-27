@@ -1,5 +1,7 @@
 # Tachyon
 
+[![ci](https://github.com/shahwfabian/tachyon/actions/workflows/ci.yml/badge.svg)](https://github.com/shahwfabian/tachyon/actions/workflows/ci.yml)
+
 **A C++20 limit order book that is fast, and can prove it's correct.**
 
 Tachyon is a single-instrument, price-time-priority matching engine, plus the tooling that keeps it honest:

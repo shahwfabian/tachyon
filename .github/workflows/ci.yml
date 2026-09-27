@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, cxx: g++, sanitize: OFF }
+          - { os: ubuntu-latest, cxx: clang++, sanitize: OFF }
+          - { os: ubuntu-latest, cxx: clang++, sanitize: ON }
+          - { os: macos-latest, cxx: clang++, sanitize: OFF }
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} / ${{ matrix.cxx }}${{ matrix.sanitize == 'ON' && ' / asan+ubsan' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+          -DTACHYON_NATIVE=OFF -DTACHYON_SANITIZE=${{ matrix.sanitize }}
+      - name: Build
+        run: cmake --build build -j
+      - name: Unit tests
+        run: ./build/tachyon_tests
+      - name: Fuzz campaign (all planted bugs must be found and shrunk)
+        run: ./build/tachyon_fuzz --clean 1000 --out fuzz.json
+      - name: Benchmark (smoke)
+        if: matrix.sanitize == 'OFF' && matrix.os == 'ubuntu-latest'
+        run: ./build/tachyon_bench --events 1000000 --out bench.json

@@ -302,8 +302,7 @@ int main(int argc, char** argv) {
     js.setf(std::ios::fixed);
     js.precision(3);
     js << "{\n\"machine\":{\"cpu\":\"" << cpu << "\",\"tsc_ghz\":" << tpn << ",\"timer_overhead_ns\":" << overhead / tpn
-       << ",\"compiler\":\"" << compiler_name() << " -O3 -march=native\"},
-"
+       << ",\"compiler\":\"" << compiler_name() << " -O3 -march=native\"},\n"
        << "\"workload\":{\"events\":" << n << ",\"warmup_orders\":" << kWarmupOrders << ",\"ticks\":" << kTicks
        << ",\"target_resting\":" << kTargetResting
        << ",\"mix\":{\"passive_add\":45,\"aggressive_add\":5,\"cancel\":35,\"modify\":10,\"market\":5}},\n"
